@@ -1,36 +1,89 @@
-node {
-    def app
+pipeline {
+    agent any
 
-    stage('Clone repository') {
-        /* Let's make sure we have the repository cloned to our workspace */
+    // polling by schedular
+    // triggers {
+    //     pollSCM('*/3 * * * *')
+    // }
 
-        checkout scm
+    environment {
+        registry = 'learning/test'
+        registryCredential = 'docker-hub-credentials'
+        dockerImage = ''
     }
 
-    stage('Build image') {
-        /* This builds the actual image; synonymous to
-         * docker build on the command line */
-
-        app = docker.build("learning/test")
-    }
-
-    stage('Test image') {
-        /* Ideally, we would run a test framework against our image.
-         * For this example, we're using a Volkswagen-type approach ;-) */
-
-        app.inside {
-            sh 'echo "Tests passed"'
+    stages {
+        stage('Echo') {
+            agent any
+            steps {
+                echo 'from github repository'
+                echo 'build number is ' + "${env.BUILD_NUMBER}"
+            }
         }
-    }
+        // stage for cloning your github repository
+        stage('Prepare') {
+            agent any
+            steps {
+                echo 'Cloning Repository'
+                
+                checkout scm
+            }
+            post {
+                failure {
+                    error 'This pipeline stops here...'
+                }
+            }
+        }
 
-    stage('Push image') {
-        /* Finally, we'll push the image with two tags:
-         * First, the incremental build number from Jenkins
-         * Second, the 'latest' tag.
-         * Pushing multiple tags is cheap, as all the layers are reused. */
-        docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-credentials') {
-            app.push("${env.BUILD_NUMBER}")
-            app.push("latest")
+        // gradle build
+        stage('Bulid Gradle') {
+            agent any
+            steps {
+                echo 'Bulid Gradle'
+                dir ('.'){
+                  sh './gradlew clean build'
+                }
+            }
+            post {
+                failure {
+                    error 'This pipeline stops here...'
+                }
+            }
+        }
+
+        // docker build
+        stage('Bulid Docker') {
+            agent any
+            steps {
+                echo 'Bulid Docker'
+                script {
+                    dockerImage = docker.build registry
+                }
+            }
+            post {
+                failure {
+                  error 'This pipeline stops here...'
+                }
+            }
+        }
+
+        // docker push
+        stage('Push Docker') {
+            agent any
+            steps {
+                echo 'Push Docker'
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', registryCredential) {
+                        dockerImage.push("${env.BUILD_NUMBER}") 
+                        dockerImage.push('latest')
+                    }
+                }
+            }
+            post {
+                failure {
+                    error 'This pipeline stops here...'
+                }
+            }
         }
     }
 }
