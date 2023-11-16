@@ -25,24 +25,8 @@ pipeline {
             agent any
             steps {
                 echo 'Cloning Repository'
-                
-                checkout scm
-            }
-            post {
-                failure {
-                    error 'This pipeline stops here...'
-                }
-            }
-        }
 
-        // gradle build
-        stage('Bulid Gradle') {
-            agent any
-            steps {
-                echo 'Bulid Gradle'
-                dir ('.'){
-                  sh './gradlew clean build'
-                }
+                checkout scm
             }
             post {
                 failure {
