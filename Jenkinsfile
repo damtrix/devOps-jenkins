@@ -1,73 +1,36 @@
-pipeline {
-    agent any
+node {
+    def app
 
-    // polling by schedular
-    // triggers {
-    //     pollSCM('*/3 * * * *')
-    // }
+    stage('Clone repository') {
+        /* Let's make sure we have the repository cloned to our workspace */
 
-    environment {
-        registry = 'learning/test'
-        registryCredential = 'docker-hub-credentials'
-        dockerImage = ''
+        checkout scm
     }
 
-    stages {
-        stage('Echo') {
-            agent any
-            steps {
-                echo 'from github repository'
-                echo 'build number is ' + "${env.BUILD_NUMBER}"
-            }
-        }
-        // stage for cloning your github repository
-        stage('Prepare') {
-            agent any
-            steps {
-                echo 'Cloning Repository'
+    stage('Build image') {
+        /* This builds the actual image; synonymous to
+         * docker build on the command line */
 
-                checkout scm
-            }
-            post {
-                failure {
-                    error 'This pipeline stops here...'
-                }
-            }
-        }
+        app = docker.build("learning/test")
+    }
 
-        // docker build
-        stage('Bulid Docker') {
-            agent any
-            steps {
-                echo 'Bulid Docker'
-                script {
-                    dockerImage = docker.build registry
-                }
-            }
-            post {
-                failure {
-                  error 'This pipeline stops here...'
-                }
-            }
-        }
+    stage('Test image') {
+        /* Ideally, we would run a test framework against our image.
+         * For this example, we're using a Volkswagen-type approach ;-) */
 
-        // docker push
-        stage('Push Docker') {
-            agent any
-            steps {
-                echo 'Push Docker'
-                script {
-                    docker.withRegistry('https://registry.hub.docker.com', registryCredential) {
-                        dockerImage.push("${env.BUILD_NUMBER}") 
-                        dockerImage.push('latest')
-                    }
-                }
-            }
-            post {
-                failure {
-                    error 'This pipeline stops here...'
-                }
-            }
+        app.inside {
+            sh 'echo "Tests passed"'
+        }
+    }
+
+    stage('Push image') {
+        /* Finally, we'll push the image with two tags:
+         * First, the incremental build number from Jenkins
+         * Second, the 'latest' tag.
+         * Pushing multiple tags is cheap, as all the layers are reused. */
+        docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-credentials') {
+            app.push("${env.BUILD_NUMBER}")
+            app.push("latest")
         }
     }
 }
