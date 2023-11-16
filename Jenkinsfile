@@ -11,7 +11,7 @@ node {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
 
-        app = docker.build("learning/test")
+        app = docker.build("damtrix25/test")
     }
 
     stage('Test image') {
